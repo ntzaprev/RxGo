@@ -161,6 +161,31 @@ func (o Observable) Distinct(apply fx.KeySelectorFunc) Observable {
 	return Observable(out)
 }
 
+//WrapObservable makes it possible to send a Observable on a channel. Possibly, there is a cleaner way
+type WrapObservable struct {
+	O Observable
+}
+//GroupBy splits an Observable into multiple according to a key
+func (o Observable) GroupBy(apply fx.KeySelectorFunc) Observable {
+	out := make(chan interface{})
+	go func() {
+		keysets := make(map[interface{}]chan interface{})
+		for item := range o {
+			key := apply(item)
+			_, ok := keysets[key]
+			if !ok {
+				newch := make(chan interface{})
+				keysets[key] = newch	
+				out <- WrapObservable{O: Observable(newch)}
+			}
+			keysets[key] <- item		
+		}
+
+		close(out)
+	}()
+	return Observable(out)
+}
+
 // DistinctUntilChanged suppresses consecutive duplicate items in the original
 // Observable and returns a new Observable.
 func (o Observable) DistinctUntilChanged(apply fx.KeySelectorFunc) Observable {
