@@ -19,4 +19,7 @@ type (
 		
 	// KeySelectorFunc defines a func that should be passed to the Distinct operator.
 	KeySelectorFunc func(interface{}) interface{}
+
+	// CombinableFunc defines a function that acts as a predicate to the CombineLatest and Zip operators.
+	CombinableFunc func(interface{}, interface{}) interface{}
 )

@@ -399,3 +399,47 @@ func Start(f fx.EmittableFunc, fs ...fx.EmittableFunc) Observable {
 
 	return Observable(source)
 }
+
+//CombineLatest transforms two Observables into an Observable of results obtained by calling the CombinableFunc
+func CombineLatest(first,second Observable, f fx.CombinableFunc) Observable {
+	source := make(chan interface{})
+	var v1,v2 interface{}
+	var o1,o2 bool
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		v1, o1 = <-first		
+	}()
+
+	go func() {
+		defer wg.Done()
+		v2, o2 = <-second
+	}()
+
+	go func () {
+		wg.Wait()
+		if v2 != nil && v1 != nil {
+			source <- f(v1,v2)
+		}
+		var item1,item2 interface{}
+		for o1 || o2 {
+			select {
+				case item1, o1 = <-first:
+					if o1 {
+						v1 = item1
+						source <- f(v1,v2)		
+					}		
+				case item2, o2 = <-second:
+					if o2 {
+						v2 = item2
+						source <- f(v1,v2)		
+					}		
+			}
+		} 
+		close(source)
+	}()
+	
+	return Observable(source)
+}
