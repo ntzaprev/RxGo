@@ -161,31 +161,6 @@ func (o Observable) Distinct(apply fx.KeySelectorFunc) Observable {
 	return Observable(out)
 }
 
-//WrapObservable makes it possible to send a Observable on a channel. Possibly, there is a cleaner way
-type WrapObservable struct {
-	O Observable
-}
-//GroupBy splits an Observable into multiple according to a key
-func (o Observable) GroupBy(apply fx.KeySelectorFunc) Observable {
-	out := make(chan interface{})
-	go func() {
-		keysets := make(map[interface{}]chan interface{})
-		for item := range o {
-			key := apply(item)
-			_, ok := keysets[key]
-			if !ok {
-				newch := make(chan interface{})
-				keysets[key] = newch	
-				out <- WrapObservable{O: Observable(newch)}
-			}
-			keysets[key] <- item		
-		}
-
-		close(out)
-	}()
-	return Observable(out)
-}
-
 // DistinctUntilChanged suppresses consecutive duplicate items in the original
 // Observable and returns a new Observable.
 func (o Observable) DistinctUntilChanged(apply fx.KeySelectorFunc) Observable {
@@ -443,3 +418,68 @@ func CombineLatest(first,second Observable, f fx.CombinableFunc) Observable {
 	
 	return Observable(source)
 }
+
+//Zip transforms two Observables into an Observable of results obtained by calling the CombinableFunc
+func Zip(first,second Observable, f fx.CombinableFunc) Observable {
+	source := make(chan interface{})
+	var v1,v2 interface{}
+	var o1,o2 bool
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		v1, o1 = <-first		
+	}()
+
+	go func() {
+		defer wg.Done()
+		v2, o2 = <-second
+	}()
+
+	go func () {
+		wg.Wait()
+		if v2 != nil && v1 != nil {
+			source <- f(v1,v2)
+		}
+		var item1,item2 interface{}
+		for o1 && o2 {
+			if item1, o1 = <-first; o1 {
+				v1 = item1		
+				if item2, o2 = <-second; o2 {
+					v2 = item2
+					source <- f(v1,v2)		
+				}			
+			}			
+		} 
+		close(source)
+	}()
+	
+	return Observable(source)
+}
+
+//WrapObservable makes it possible to send a Observable on a channel. Possibly, there is a cleaner way
+type WrapObservable struct {
+	O Observable
+}
+//GroupBy splits an Observable into multiple according to a key
+func (o Observable) GroupBy(apply fx.KeySelectorFunc) Observable {
+	out := make(chan interface{})
+	go func() {
+		keysets := make(map[interface{}]chan interface{})
+		for item := range o {
+			key := apply(item)
+			_, ok := keysets[key]
+			if !ok {
+				newch := make(chan interface{})
+				keysets[key] = newch	
+				out <- WrapObservable{O: Observable(newch)}
+			}
+			keysets[key] <- item		
+		}
+
+		close(out)
+	}()
+	return Observable(out)
+}
+

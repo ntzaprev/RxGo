@@ -920,3 +920,47 @@ func TestCombineLatest(t *testing.T) {
 
 	assert.Exactly(t, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, nums)
 }
+
+func TestZip(t *testing.T) {
+	items1 := []interface{}{0, 1, 2, 3, 4, 5}
+
+	it1, err := iterable.New(items1)
+	if err != nil {
+		t.Fail()
+	}
+
+	stream1 := From(it1)
+	items2 := []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8}
+	
+	it2, err := iterable.New(items2)
+	if err != nil {
+		t.Fail()
+	}
+
+	stream2 := From(it2)
+
+	comb := fx.CombinableFunc(func(in1,in2 interface{})interface{} {
+		var r1,r2 int
+		if i,ok := in1.(int); ok {
+			r1 = i
+		}
+		if i,ok := in2.(int); ok {
+			r2 = i
+		}
+		return r1+r2
+	})
+
+	stream3 := Zip(stream1, stream2, comb)
+
+	var nums []int
+	OnNext := handlers.NextFunc(func(item interface{}){
+		if i,ok := item.(int); ok {
+			nums = append(nums,i)
+		}
+	})
+	
+	s := stream3.Subscribe(OnNext)
+	<-s
+
+	assert.Exactly(t, []int{0, 2, 4, 6, 8, 10}, nums)
+}
