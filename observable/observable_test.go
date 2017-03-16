@@ -12,6 +12,7 @@ import (
 	"github.com/reactivex/rxgo/observer"
 
 	"github.com/stretchr/testify/assert"
+	"sync"
 )
 
 func TestDefaultObservable(t *testing.T) {
@@ -631,6 +632,8 @@ func TestObservableGroupBy(t *testing.T) {
 		V int
 	}
 
+	var l sync.Mutex
+
 	items := []interface{}{KV{1,1}, KV{0,2}, KV{0,2}, KV{1,1}, KV{1,3}}
 	it, err := iterable.New(items)
 	if err != nil {
@@ -650,6 +653,8 @@ func TestObservableGroupBy(t *testing.T) {
 
 	kvs := make(map[interface{}][]KV)
 	onNext1 := handlers.NextFunc(func(item interface{}) {
+		l.Lock()
+		defer l.Unlock()
 		if p, ok := item.(KV); ok {
 			kvs[p.K] = append(kvs[p.K],p)
 		}
