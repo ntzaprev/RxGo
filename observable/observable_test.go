@@ -626,58 +626,6 @@ func TestObservableDistinct(t *testing.T) {
 	assert.Exactly(t, []int{1, 2, 3}, nums)
 }
 
-func TestObservableGroupBy(t *testing.T) {
-	type KV struct {
-		K interface{}
-		V int
-	}
-
-	var l sync.Mutex
-
-	items := []interface{}{KV{1,1}, KV{0,2}, KV{0,2}, KV{1,1}, KV{1,3}}
-	it, err := iterable.New(items)
-	if err != nil {
-		t.Fail()
-	}
-
-	stream1 := From(it)
-
-	key := func(item interface{}) interface{} {
-		if i, ok := item.(KV); ok {
-			return i.K
-		}		
-		return -1
-	}
-
-	stream2 := stream1.GroupBy(key)
-
-	kvs := make(map[interface{}][]KV)
-	onNext1 := handlers.NextFunc(func(item interface{}) {
-		l.Lock()
-		defer l.Unlock()
-		if p, ok := item.(KV); ok {
-			kvs[p.K] = append(kvs[p.K],p)
-		}
-	})
-
-	onNext := handlers.NextFunc(func(item interface{}) {
-		if ob, ok := item.(WrapObservable); ok {
-			s := ob.O.Subscribe(onNext1)
-			go func() {
-				<-s
-			}()
-		} 
-	})
-
-	sub := stream2.Subscribe(onNext)
-	<-sub
-
-	m := make(map[interface{}][]KV)
-	m[0] = []KV {{0, 2},{0, 2}}
-	m[1] = []KV { {1 ,1}, {1, 1}, {1, 3}}
-	assert.Exactly(t, m, kvs)
-}
-
 func TestObservableDistinctUntilChanged(t *testing.T) {
 	items := []interface{}{1, 2, 2, 1, 3}
 	it, err := iterable.New(items)
@@ -880,6 +828,58 @@ func TestRepeatWithNegativeTimesOperator(t *testing.T) {
 	<-sub
 
 	assert.Exactly(t, []string{"end"}, stringarray)
+}
+
+func TestObservableGroupBy(t *testing.T) {
+	type KV struct {
+		K interface{}
+		V int
+	}
+
+	var l sync.Mutex
+
+	items := []interface{}{KV{1,1}, KV{0,2}, KV{0,2}, KV{1,1}, KV{1,3}}
+	it, err := iterable.New(items)
+	if err != nil {
+		t.Fail()
+	}
+
+	stream1 := From(it)
+
+	key := func(item interface{}) interface{} {
+		if i, ok := item.(KV); ok {
+			return i.K
+		}		
+		return -1
+	}
+
+	stream2 := stream1.GroupBy(key)
+
+	kvs := make(map[interface{}][]KV)
+	onNext1 := handlers.NextFunc(func(item interface{}) {
+		l.Lock()
+		defer l.Unlock()
+		if p, ok := item.(KV); ok {
+			kvs[p.K] = append(kvs[p.K],p)
+		}
+	})
+
+	onNext := handlers.NextFunc(func(item interface{}) {
+		if ob, ok := item.(WrapObservable); ok {
+			s := ob.O.Subscribe(onNext1)
+			go func() {
+				<-s
+			}()
+		} 
+	})
+
+	sub := stream2.Subscribe(onNext)
+	<-sub
+
+	m := make(map[interface{}][]KV)
+	m[0] = []KV {{0, 2},{0, 2}}
+	m[1] = []KV { {1 ,1}, {1, 1}, {1, 3}}
+	assert.Exactly(t, m, kvs)
 }
 
 func TestCombineLatest(t *testing.T) {
